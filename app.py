@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+import html
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -17,6 +18,44 @@ from travel import venues, minutes, venueId
 localTimeZone = ZoneInfo("America/Los_Angeles")
 st.set_page_config(page_title="re:Invent Planner", page_icon="🗺️", layout="wide")
 
+st.markdown("""
+<style>
+  [data-testid="stTabs"] button { font-weight: 650; }
+  [data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 12px;
+  }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="workshop"]) { background: #fff8ee; border-color: #f3d5ac; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="talk"]) { background: #f3f7ff; border-color: #c9d9f5; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="builder"]) { background: #effaf7; border-color: #b9e4d8; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="keynote"]) { background: #fff2f0; border-color: #f0c7c0; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="other"]) { background: #f6f3fc; border-color: #d9ccec; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) { height: 260px; box-sizing: border-box; overflow-y: auto; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge):has(details[open]) { height: auto; overflow: visible; }
+  .format-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+  .format-badge[data-tone="workshop"] { color: #89500d; background: #ffebca; }
+  .format-badge[data-tone="talk"] { color: #28518d; background: #e2edff; }
+  .format-badge[data-tone="builder"] { color: #176756; background: #d9f3eb; }
+  .format-badge[data-tone="keynote"] { color: #983f31; background: #ffe0da; }
+  .format-badge[data-tone="other"] { color: #62478d; background: #ece3fa; }
+  .format-badge[data-tone="default"] { color: #475569; background: #e9eef4; }
+  .meta-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: .76rem; font-weight: 650; }
+  .venue-0 { color: #245b76; background: #dff2fa; }
+  .venue-1 { color: #8a5218; background: #fff0d8; }
+  .venue-2 { color: #4a5e9b; background: #e8ebff; }
+  .venue-3 { color: #376b44; background: #e3f3e4; }
+  .venue-4 { color: #734a78; background: #f3e7f5; }
+  .venue-5 { color: #9a4545; background: #fbe7e5; }
+  .venue-unknown { color: #475569; background: #e9eef4; }
+  .level-foundation { color: #286344; background: #e1f4e8; }
+  .level-intermediate { color: #28518d; background: #e2edff; }
+  .level-advanced { color: #62478d; background: #ece3fa; }
+  .level-expert { color: #983f31; background: #ffe0da; }
+  .level-unknown { color: #475569; background: #e9eef4; }
+  .badge-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; }
+  .badge-key-label { color: #68778a; font-size: .78rem; font-weight: 700; margin-right: 3px; }
+</style>
+""", unsafe_allow_html=True)
+
 
 def local(iso: str) -> datetime:
     return datetime.fromisoformat(iso).astimezone(localTimeZone)
@@ -28,6 +67,87 @@ def clock(iso: str) -> str:
 
 def labelDay(day: str) -> str:
     return datetime.fromisoformat(day).strftime("%A, %b %d")
+
+
+def formatTone(sessionType: str) -> str:
+    value = sessionType.casefold()
+    if "workshop" in value or "lab" in value:
+        return "workshop"
+    if "keynote" in value or "address" in value:
+        return "keynote"
+    if "builder" in value:
+        return "builder"
+    if any(word in value for word in ("breakout", "chalk", "lecture", "talk", "session")):
+        return "talk"
+    return "other" if value else "default"
+
+
+def formatBadge(sessionType: str) -> str:
+    label = sessionType or "Format TBD"
+    return f'<span class="format-badge" data-tone="{formatTone(label)}">{html.escape(label)}</span>'
+
+
+def formatDetails(session: dict) -> str:
+    venue = html.escape(session["venue"] or "Venue TBD")
+    level = html.escape(session["level"] or "")
+    venueIndex = {"caesars-forum": 0, "caesars-palace": 1, "encore": 2,
+                  "mgm-grand": 3, "venetian": 4, "wynn": 5}.get(venueId(session["venue"]), "unknown")
+    levelValue = (session["level"] or "").casefold()
+    levelTone = next((tone for words, tone in [
+        (("foundational", "foundation", "beginner", "introductory"), "foundation"),
+        (("intermediate",), "intermediate"),
+        (("advanced",), "advanced"),
+        (("expert",), "expert"),
+    ] if any(word in levelValue for word in words)), "unknown")
+    venueBadge = f'<span class="meta-badge venue-{venueIndex}">📍 {venue}</span>'
+    levelBadge = f'<span class="meta-badge level-{levelTone}">{level or "Level TBD"}</span>'
+    return f"{formatBadge(session['type'])}  {venueBadge}  {levelBadge}"
+
+
+def showBadgeKey():
+    st.markdown("""
+    <div class="badge-key">
+      <span class="badge-key-label">Venues</span>
+      <span class="meta-badge venue-0">Caesars Forum</span><span class="meta-badge venue-1">Caesars Palace</span>
+      <span class="meta-badge venue-2">Encore</span><span class="meta-badge venue-3">MGM Grand</span>
+      <span class="meta-badge venue-4">Venetian</span><span class="meta-badge venue-5">Wynn</span>
+      <span class="meta-badge venue-unknown">Other</span>
+      <span class="badge-key-label">Levels</span>
+      <span class="meta-badge level-foundation">Foundational</span><span class="meta-badge level-intermediate">Intermediate</span>
+      <span class="meta-badge level-advanced">Advanced</span><span class="meta-badge level-expert">Expert</span>
+      <span class="meta-badge level-unknown">Unspecified</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def toggleSavedSession(sessionId: str):
+    current = set(db.getSetting("savedSessions", []))
+    if sessionId in current:
+        current.discard(sessionId)
+    else:
+        current.add(sessionId)
+    db.setSetting("savedSessions", sorted(current))
+
+
+def resetCatalogPage():
+    st.session_state["catalogPage"] = 1
+
+
+def changeCatalogPage(delta: int):
+    current = st.session_state.get("catalogPage", 1)
+    count = st.session_state.get("catalogPageCount", 1)
+    st.session_state["catalogPage"] = max(1, min(count, current + delta))
+
+
+def showCatalogPagination(first: int, last: int, total: int, location: str):
+    previous, summary, nextPage = st.columns([1, 4, 1])
+    previous.button("← Previous", key=f"catalogPrevious{location}",
+                    disabled=st.session_state["catalogPage"] <= 1,
+                    on_click=changeCatalogPage, args=(-1,), use_container_width=True)
+    summary.markdown(f"<div style='text-align:center;padding:.45rem 0'>Showing <b>{first}–{last}</b> of <b>{total}</b> sessions · Page {st.session_state['catalogPage']} of {st.session_state['catalogPageCount']}</div>", unsafe_allow_html=True)
+    nextPage.button("Next →", key=f"catalogNext{location}",
+                    disabled=st.session_state["catalogPage"] >= st.session_state["catalogPageCount"],
+                    on_click=changeCatalogPage, args=(1,), use_container_width=True)
 
 
 def mapFor(items: list[dict]):
@@ -136,19 +256,22 @@ if not sessions:
 
 ratings: dict[str, int] = db.getSetting("ratings", {})
 locked: set[str] = set(db.getSetting("locked", []))
+savedSessionIds: set[str] = set(db.getSetting("savedSessions", []))
 days = sorted({s["day"] for s in sessions})
 saved = db.getSetting("dailyLimits", {})
 savedKeywords = db.getSetting("keywords", "")
 
-catalogTab, plannerTab = st.tabs(["Discover & prioritize", "Build schedules"])
+catalogTab, priorityTab, plannerTab = st.tabs(["Browse sessions", "Prioritize saved", "Build schedules"])
 with catalogTab:
-    query = st.text_input("Search title, description, service, or topic", placeholder="Bedrock, .NET, architecture…")
+    query = st.text_input("Search title, description, service, or topic", placeholder="Bedrock, .NET, architecture…",
+                          key="catalogQuery", on_change=resetCatalogPage)
     c1, c2, c3 = st.columns(3)
-    dayFilter = c1.selectbox("Day", ["All days", *days], format_func=lambda d: labelDay(d) if d != "All days" else d)
+    dayFilter = c1.selectbox("Day", ["All days", *days], format_func=lambda d: labelDay(d) if d != "All days" else d,
+                             key="catalogDay", on_change=resetCatalogPage)
     types = sorted({s["type"] for s in sessions if s["type"]})
-    typeFilter = c2.selectbox("Format", ["All formats", *types])
+    typeFilter = c2.selectbox("Format", ["All formats", *types], key="catalogFormat", on_change=resetCatalogPage)
     levels = sorted({s["level"] for s in sessions if s["level"]})
-    levelFilter = c3.selectbox("Level", ["All levels", *levels])
+    levelFilter = c3.selectbox("Level", ["All levels", *levels], key="catalogLevel", on_change=resetCatalogPage)
     needle = query.casefold().strip()
     matches = [s for s in sessions if
                (not needle or needle in " ".join([s["title"], s["abstract"], s["code"], *s["topics"], *s["services"]]).casefold())
@@ -156,36 +279,71 @@ with catalogTab:
                and (typeFilter == "All formats" or s["type"] == typeFilter)
                and (levelFilter == "All levels" or s["level"] == levelFilter)]
     matches.sort(key=lambda s: (s["day"], local(s["start"]), s["title"]))
-    st.caption(f"{len(matches)} matching sessions. Rate favorites 1–5, avoid with −1, or lock a must-attend session. Showing up to 40 at a time.")
+    st.caption(f"{len(matches)} matching sessions · Save sessions here, then set priorities on the next page.")
+    showBadgeKey()
     pageCount = max(1, (len(matches) + 39) // 40)
-    page = st.number_input("Page", min_value=1, max_value=pageCount, value=1)
+    st.session_state["catalogPageCount"] = pageCount
+    page = min(st.session_state.get("catalogPage", 1), pageCount)
+    st.session_state["catalogPage"] = page
     visible = matches[(page - 1) * 40:page * 40]
-    with st.form("ratingsForm"):
-        edits = []
-        for session in visible:
-            st.markdown(f"**{session['code'] or 'Session'} · {session['title']}**  \n{labelDay(session['day'])} · {clock(session['start'])}–{clock(session['end'])} · {session['venue'] or 'Venue TBD'} · {session['type']}")
-            with st.expander("Description"):
-                st.write(session["abstract"] or "No description available.")
-                st.caption(" · ".join(session["services"] + session["topics"]))
-            a, b = st.columns([2, 1])
-            rating = a.selectbox("Priority", [-1, 0, 1, 2, 3, 4, 5],
-                                 index=[-1, 0, 1, 2, 3, 4, 5].index(int(ratings.get(session["id"], 0))),
-                                 format_func=lambda n: "Avoid" if n == -1 else "Neutral" if n == 0 else f"{n} / 5",
-                                 key=f"rating{session['id']}")
-            must = b.checkbox("Must attend", value=session["id"] in locked, key=f"lock{session['id']}")
-            edits.append((session["id"], rating, must))
-            st.divider()
-        if st.form_submit_button("Save these priorities"):
-            for sid, rating, must in edits:
-                ratings[sid] = rating
-                if must:
-                    locked.add(sid)
-                else:
-                    locked.discard(sid)
-            db.setSetting("ratings", ratings)
-            db.setSetting("locked", sorted(locked))
-            st.session_state.pop("options", None)
-            st.success("Priorities saved. Generate schedules on the next tab.")
+    firstResult = (page - 1) * 40 + 1 if matches else 0
+    lastResult = min(page * 40, len(matches))
+    showCatalogPagination(firstResult, lastResult, len(matches), "Top")
+    cardColumns = st.columns(3, gap="medium")
+    for index, session in enumerate(visible):
+        with cardColumns[index % 3]:
+            with st.container(border=True):
+                titleColumn, starColumn = st.columns([0.86, 0.14])
+                titleColumn.markdown(f"**{session['title']}**")
+                isSaved = session["id"] in savedSessionIds
+                starColumn.button("★" if isSaved else "☆", key=f"save{session['id']}",
+                                  help="Remove from saved sessions" if isSaved else "Save this session",
+                                  on_click=toggleSavedSession, args=(session["id"],))
+                st.caption(f"{session['code'] or 'SESSION'}  ·  {labelDay(session['day'])}  ·  {clock(session['start'])}–{clock(session['end'])}")
+                st.markdown(formatDetails(session), unsafe_allow_html=True)
+                with st.expander("About this session"):
+                    st.write(session["abstract"] or "No description available.")
+                    tags = session["services"] + session["topics"]
+                    if tags:
+                        st.caption("  ·  ".join(tags))
+    showCatalogPagination(firstResult, lastResult, len(matches), "Bottom")
+
+with priorityTab:
+    savedSessions = [s for s in sessions if s["id"] in savedSessionIds]
+    savedSessions.sort(key=lambda s: (s["day"], local(s["start"]), s["title"]))
+    st.caption(f"{len(savedSessions)} saved sessions · Set a rating or mark must-attend sessions, then save your priorities.")
+    if savedSessions:
+        showBadgeKey()
+    if not savedSessions:
+        st.info("Browse sessions and save a few to get started.")
+    else:
+        with st.form("ratingsForm"):
+            edits = []
+            cardColumns = st.columns(3, gap="medium")
+            for index, session in enumerate(savedSessions):
+                with cardColumns[index % 3]:
+                    with st.container(border=True):
+                        st.markdown(f"**{session['title']}**")
+                        st.caption(f"{session['code'] or 'SESSION'}  ·  {labelDay(session['day'])}  ·  {clock(session['start'])}–{clock(session['end'])}")
+                        st.markdown(formatDetails(session), unsafe_allow_html=True)
+                        a, b = st.columns([1, 1])
+                        rating = a.selectbox("Priority", [-1, 0, 1, 2, 3, 4, 5],
+                                             index=[-1, 0, 1, 2, 3, 4, 5].index(int(ratings.get(session["id"], 0))),
+                                             format_func=lambda n: "Avoid" if n == -1 else "Neutral" if n == 0 else f"{n} / 5",
+                                             key=f"rating{session['id']}")
+                        must = b.checkbox("Must attend", value=session["id"] in locked, key=f"lock{session['id']}")
+                        edits.append((session["id"], rating, must))
+            if st.form_submit_button("Save priorities", type="primary"):
+                for sid, rating, must in edits:
+                    ratings[sid] = rating
+                    if must:
+                        locked.add(sid)
+                    else:
+                        locked.discard(sid)
+                db.setSetting("ratings", ratings)
+                db.setSetting("locked", sorted(locked))
+                st.session_state.pop("options", None)
+                st.success("Priorities saved. Generate schedules on the next page.")
 
 with plannerTab:
     st.subheader("Daily session counts")
@@ -240,13 +398,15 @@ with plannerTab:
             if not items:
                 st.write("No sessions planned for this day.")
             for index, s in enumerate(items):
-                st.markdown(f"**{index + 1}. {clock(s['start'])}–{clock(s['end'])} · {s['code'] or 'Session'}**  \n{s['title']}  \n{s['venue'] or 'Venue TBD'}{(' · ' + s['room']) if s['room'] else ''}")
+                with st.container(border=True):
+                    st.caption(f"STOP {index + 1}  ·  {clock(s['start'])}–{clock(s['end'])}  ·  {s['code'] or 'SESSION'}")
+                    st.markdown(f"**{s['title']}**")
+                    st.markdown(f"📍 {s['venue'] or 'Venue TBD'}{('  ·  ' + s['room']) if s['room'] else ''}")
                 if index + 1 < len(items):
                     nxt = items[index + 1]
                     travel = minutes(s["venue"], nxt["venue"])
                     gap = int((local(nxt["start"]) - local(s["end"])).total_seconds() // 60)
-                    st.caption(f"↓ ~{travel} min transfer · {gap - travel} min buffer" + (" ⚠ tight" if gap - travel < 10 else ""))
-                st.divider()
+                    st.caption(f"↓  ~{travel} min transfer  ·  {gap - travel} min buffer" + ("  ⚠ Tight connection" if gap - travel < 10 else ""))
         with right:
             st.subheader("Venue map · session order")
             mapFor(items)

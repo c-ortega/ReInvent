@@ -1,4 +1,3 @@
-"""Local-only Builder ID OAuth/PKCE callback and protected token storage."""
 from __future__ import annotations
 
 import base64

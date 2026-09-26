@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "data/planner.db"
+dbPath = Path(__file__).resolve().parent / "data/planner.db"
+
 
 def openConnection():
-    DB_PATH.parent.mkdir(exist_ok=True)
-    connection = sqlite3.connect(DB_PATH)
+    dbPath.parent.mkdir(exist_ok=True)
+    connection = sqlite3.connect(dbPath)
     connection.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, rawJson TEXT NOT NULL)")
     connection.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, valueJson TEXT NOT NULL)")
     sessionColumns = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
@@ -23,25 +25,29 @@ def openConnection():
 
 
 def saveCatalog(sessions: list[dict]) -> None:
-    with openConnection() as db:
+    with closing(openConnection()) as db, db:
+        # Replace atomically so removed sessions disappear on refresh.
         db.execute("DELETE FROM sessions")
         db.executemany(
-            "INSERT INTO sessions (id, raw_json) VALUES (?, ?)",
-            [(str(s["sessionId"]), json.dumps(s)) for s in sessions if s.get("sessionId") is not None]
+            "INSERT INTO sessions (id, rawJson) VALUES (?, ?)",
+            [(str(s["sessionId"]), json.dumps(s)) for s in sessions if s.get("sessionId") is not None],
         )
 
+
 def loadCatalog() -> list[dict]:
-    with openConnection() as db:
-        return [json.loads(row[0]) for row in db.execute("SELECT raw_json FROM sessions")]
+    with closing(openConnection()) as db:
+        return [json.loads(row[0]) for row in db.execute("SELECT rawJson FROM sessions")]
+
 
 def getSetting(key: str, default):
-    with openConnection() as db:
-        row = db.execute("SELECT value_json FROM settings WHERE id = ?", (key,)).fetchone()
+    with closing(openConnection()) as db:
+        row = db.execute("SELECT valueJson FROM settings WHERE key=?", (key,)).fetchone()
         return json.loads(row[0]) if row else default
 
+
 def setSetting(key: str, value) -> None:
-    with openConnection() as db:
+    with closing(openConnection()) as db, db:
         db.execute(
-            "INSERT INTO settings (key, value_json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
+            "INSERT INTO settings (key, valueJson) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET valueJson=excluded.valueJson",
             (key, json.dumps(value)),
         )

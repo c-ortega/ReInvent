@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
 eventId = "reinvent2026"
 catalogUrl = f"https://api.awsevents.com/v1/events/{eventId}/sessions"
+eventTimeZone = ZoneInfo("America/Los_Angeles")
 
 
 def firstValue(obj: dict, *names: str) -> Any:
@@ -44,29 +46,65 @@ def parseTimestamp(value: Any) -> str | None:
         return None
 
 
+def parseSessionTime(value: Any) -> tuple[str, str] | None:
+    """Read AWS's date, local time, duration and optional time zone."""
+    if not isinstance(value, dict):
+        return None
+    date, clock, length = (value.get(key) for key in ("date", "time", "length"))
+    if not all(isinstance(part, str) and part for part in (date, clock, length)):
+        return None
+    zoneName = value.get("timezone")
+    try:
+        if not zoneName:
+            zone = eventTimeZone
+        elif zoneName in ("PST", "PDT", "PT", "Pacific Standard Time", "Pacific Daylight Time"):
+            zone = eventTimeZone
+        elif isinstance(zoneName, str) and len(zoneName) == 6 and zoneName[0] in "+-" and zoneName[3] == ":":
+            sign = 1 if zoneName[0] == "+" else -1
+            zone = timezone(sign * timedelta(hours=int(zoneName[1:3]), minutes=int(zoneName[4:6])))
+        else:
+            zone = ZoneInfo(str(zoneName))
+        duration = int(length)
+        if not 0 < duration <= 24 * 60:
+            return None
+        start = datetime.fromisoformat(f"{date}T{clock}")
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=zone)
+        end = start + timedelta(minutes=duration)
+        return start.isoformat(), end.isoformat()
+    except (ValueError, TypeError, ZoneInfoNotFoundError):
+        return None
+
+
 def normalize(raw: dict) -> dict | None:
     """Return one timed occurrence, or None if it cannot safely be scheduled."""
+    if raw.get("isAllDaySession"):
+        return None
     sid = firstValue(raw, "sessionId", "id")
     title = asText(firstValue(raw, "title", "name"))
     start = parseTimestamp(firstValue(raw, "startTime", "start", "startsAt"))
     end = parseTimestamp(firstValue(raw, "endTime", "end", "endsAt"))
+    if not (start and end):
+        parsedTime = parseSessionTime(raw.get("sessionTime"))
+        if parsedTime:
+            start, end = parsedTime
     if not (sid and title and start and end):
         return None
     if datetime.fromisoformat(end) <= datetime.fromisoformat(start):
         return None
     venue = asText(firstValue(raw, "venue", "venueName", "location"))
     room = asText(firstValue(raw, "room", "roomName"))
-    code = asText(firstValue(raw, "code", "sessionCode", "shortCode"))
+    code = asText(firstValue(raw, "abbreviation", "code", "sessionCode", "shortCode"))
     return {
         "id": str(sid), "code": code, "title": title,
         "abstract": asText(firstValue(raw, "abstract", "description")),
         "type": asText(firstValue(raw, "type", "sessionType")),
         "level": asText(firstValue(raw, "level", "sessionLevel")),
-        "topics": asLabels(raw.get("topics")),
+        "topics": asLabels(raw.get("topics")) + asLabels(raw.get("areasOfInterest")),
         "services": asLabels(firstValue(raw, "services", "awsServices")),
         "tracks": asLabels(raw.get("tracks")),
         "start": start, "end": end, "venue": venue, "room": room,
-        "day": datetime.fromisoformat(start).astimezone(__import__("zoneinfo").ZoneInfo("America/Los_Angeles")).date().isoformat(),
+        "day": datetime.fromisoformat(start).astimezone(eventTimeZone).date().isoformat(),
     }
 
 
@@ -85,9 +123,10 @@ def fetchAll(accessToken: str) -> list[dict]:
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("Unexpected AWS catalog response: expected an object")
-            page = payload.get("sessions")
+            page = payload.get("items", payload.get("sessions"))
             if not isinstance(page, list):
-                raise ValueError("Unexpected AWS catalog response: sessions list missing")
+                keys = ", ".join(sorted(payload))
+                raise ValueError(f"Unexpected AWS catalog response: items list missing (fields: {keys})")
             for item in page:
                 if isinstance(item, dict) and item.get("sessionId") is not None:
                     result[str(item["sessionId"])] = item
@@ -97,3 +136,4 @@ def fetchAll(accessToken: str) -> list[dict]:
             if not isinstance(nextToken, str) or nextToken in seenTokens:
                 raise ValueError("AWS returned an invalid or repeated nextToken")
             seenTokens.add(nextToken)
+

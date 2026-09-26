@@ -1,9 +1,9 @@
 {
-  "same_venue_minutes": 8,
-  "unknown_venue_minutes": 40,
-  "walking_speed_kmh": 3.7,
-  "route_multiplier": 1.5,
-  "entry_exit_minutes": 10,
+  "sameVenueMinutes": 8,
+  "unknownVenueMinutes": 40,
+  "walkingSpeedKmh": 3.7,
+  "routeMultiplier": 1.5,
+  "entryExitMinutes": 10,
   "overrides": {
     "caesars-forum|venetian": 18,
     "encore|wynn": 10,

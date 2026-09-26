@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "database.db"
+DB_PATH = Path(__file__).resolve().parent / "data/planner.db"
 
 def _connection():
     DB_PATH.parent.mkdir(exist_ok=True)

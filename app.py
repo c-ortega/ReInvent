@@ -31,6 +31,8 @@ st.markdown("""
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="other"]) { background: #f6f3fc; border-color: #d9ccec; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) { height: 260px; box-sizing: border-box; overflow-y: auto; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge):has(details[open]) { height: auto; overflow: visible; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) [data-testid="stButton"] button { min-width: 52px; height: 52px; padding: 0; font-size: 1.8rem !important; line-height: 1; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) [data-testid="stButton"] button p { margin: 0 !important; font-size: 1.8rem !important; line-height: 1; }
   .format-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
   .format-badge[data-tone="workshop"] { color: #89500d; background: #ffebca; }
   .format-badge[data-tone="talk"] { color: #28518d; background: #e2edff; }
@@ -50,9 +52,10 @@ st.markdown("""
   .level-intermediate { color: #28518d; background: #e2edff; }
   .level-advanced { color: #62478d; background: #ece3fa; }
   .level-expert { color: #983f31; background: #ffe0da; }
-  .level-unknown { color: #475569; background: #e9eef4; }
+  .level-distinguished { color: #475569; background: #e9eef4; }
   .badge-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; }
   .badge-key-label { color: #68778a; font-size: .78rem; font-weight: 700; margin-right: 3px; }
+  .session-time { display: inline-block; padding: 5px 9px; margin: 2px 0 7px; border-radius: 8px; color: #263b55; background: #eaf0f7; font-size: .8rem; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,26 +101,32 @@ def formatDetails(session: dict) -> str:
         (("intermediate",), "intermediate"),
         (("advanced",), "advanced"),
         (("expert",), "expert"),
-    ] if any(word in levelValue for word in words)), "unknown")
-    venueBadge = f'<span class="meta-badge venue-{venueIndex}">📍 {venue}</span>'
+    ] if any(word in levelValue for word in words)), "distinguished")
+    venueBadge = f'<span class="meta-badge venue-{venueIndex}">{venue}</span>'
     levelBadge = f'<span class="meta-badge level-{levelTone}">{level or "Level TBD"}</span>'
     return f"{formatBadge(session['type'])}  {venueBadge}  {levelBadge}"
 
 
+def sessionTiming(session: dict) -> str:
+    dateTime = f"{labelDay(session['day'])}  ·  {clock(session['start'])}–{clock(session['end'])}"
+    return f'<span class="session-time">{html.escape(dateTime)}</span>'
+
+
 def showBadgeKey():
-    st.markdown("""
-    <div class="badge-key">
-      <span class="badge-key-label">Venues</span>
-      <span class="meta-badge venue-0">Caesars Forum</span><span class="meta-badge venue-1">Caesars Palace</span>
-      <span class="meta-badge venue-2">Encore</span><span class="meta-badge venue-3">MGM Grand</span>
-      <span class="meta-badge venue-4">Venetian</span><span class="meta-badge venue-5">Wynn</span>
-      <span class="meta-badge venue-unknown">Other</span>
-      <span class="badge-key-label">Levels</span>
-      <span class="meta-badge level-foundation">Foundational</span><span class="meta-badge level-intermediate">Intermediate</span>
-      <span class="meta-badge level-advanced">Advanced</span><span class="meta-badge level-expert">Expert</span>
-      <span class="meta-badge level-unknown">Unspecified</span>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.expander("Color key", expanded=False):
+        st.markdown("""
+        <div class="badge-key">
+          <span class="badge-key-label">Venues</span>
+          <span class="meta-badge venue-0">Caesars Forum</span><span class="meta-badge venue-1">Caesars Palace</span>
+          <span class="meta-badge venue-2">Encore</span><span class="meta-badge venue-3">MGM Grand</span>
+          <span class="meta-badge venue-4">Venetian</span><span class="meta-badge venue-5">Wynn</span>
+          <span class="meta-badge venue-unknown">Other</span>
+          <span class="badge-key-label">Levels</span>
+          <span class="meta-badge level-foundation">Foundational</span><span class="meta-badge level-intermediate">Intermediate</span>
+          <span class="meta-badge level-advanced">Advanced</span><span class="meta-badge level-expert">Expert</span>
+          <span class="meta-badge level-distinguished">Distinguished</span>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def toggleSavedSession(sessionId: str):
@@ -294,12 +303,14 @@ with catalogTab:
         with cardColumns[index % 3]:
             with st.container(border=True):
                 titleColumn, starColumn = st.columns([0.86, 0.14])
-                titleColumn.markdown(f"**{session['title']}**")
                 isSaved = session["id"] in savedSessionIds
+                titleColumn.markdown(f"**{session['title']}**")
                 starColumn.button("★" if isSaved else "☆", key=f"save{session['id']}",
                                   help="Remove from saved sessions" if isSaved else "Save this session",
-                                  on_click=toggleSavedSession, args=(session["id"],))
-                st.caption(f"{session['code'] or 'SESSION'}  ·  {labelDay(session['day'])}  ·  {clock(session['start'])}–{clock(session['end'])}")
+                                  on_click=toggleSavedSession, args=(session["id"],),
+                                  type="primary" if isSaved else "secondary")
+                st.caption(session["code"] or "SESSION")
+                st.markdown(sessionTiming(session), unsafe_allow_html=True)
                 st.markdown(formatDetails(session), unsafe_allow_html=True)
                 with st.expander("About this session"):
                     st.write(session["abstract"] or "No description available.")
@@ -324,7 +335,8 @@ with priorityTab:
                 with cardColumns[index % 3]:
                     with st.container(border=True):
                         st.markdown(f"**{session['title']}**")
-                        st.caption(f"{session['code'] or 'SESSION'}  ·  {labelDay(session['day'])}  ·  {clock(session['start'])}–{clock(session['end'])}")
+                        st.caption(session["code"] or "SESSION")
+                        st.markdown(sessionTiming(session), unsafe_allow_html=True)
                         st.markdown(formatDetails(session), unsafe_allow_html=True)
                         a, b = st.columns([1, 1])
                         rating = a.selectbox("Priority", [-1, 0, 1, 2, 3, 4, 5],

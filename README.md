@@ -2,12 +2,35 @@
 
 A local Python/Streamlit app to browse re:Invent 2026 sessions, choose your interests and must-attend sessions, and compare alternative itineraries on a timeline and venue map.
 
+## Project layout
+
+`app.py`, `auth.py`, `catalog.py`, `database.py`, `optimizer.py`, and `travel.py` are **directly inside `reinventPlanner/`**. The `data/` directory holds only JSON files in the download:
+
+```text
+ReInvent/
+├── app.py
+├── auth.py
+├── catalog.py
+├── database.py
+├── optimizer.py
+├── travel.py
+├── requirements.txt
+├── data/
+│   ├── sampleSessions.json
+│   ├── travelTimes.json
+│   └── venues.json
+└── tests/
+    └── testPlanner.py
+```
+
+When the app runs, `database.py` creates `data/planner.db`. After successful AWS sign-in, `auth.py` creates `data/tokens.json`. Neither runtime file is included in the download. There is no `data/token.py` or `data/database.py`.
+
 ## Run
 
 Use Python 3.11 or newer:
 
 ```bash
-cd ReInvent
+cd reinventPlanner
 python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
@@ -27,19 +50,19 @@ The solver always enforces minimum and maximum counts, locks, time overlaps, est
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `app.py` | Streamlit browser UI, timeline, comparison, and venue map |
-| `auth.py` | Local Builder ID OAuth with PKCE and token refresh |
-| `catalog.py` | AWS catalog pagination and defensive session normalization |
-| `database.py` | SQLite cache and local settings |
-| `optimizer.py` | OR-Tools CP-SAT scheduling and alternatives |
-| `travel.py` | Venue matching and approximate transfer times |
-| `data/venues.json` | Approximate venue centers used for pins |
-| `data/travelTimes.json` | Editable travel assumptions and overrides |
-| `data/sampleSessions.json` | Synthetic sessions for preview and tests |
+| File                       | Purpose                                                    |
+| -------------------------- | ---------------------------------------------------------- |
+| `app.py`                   | Streamlit browser UI, timeline, comparison, and venue map  |
+| `auth.py`                  | Local Builder ID OAuth with PKCE and token refresh         |
+| `catalog.py`               | AWS catalog pagination and defensive session normalization |
+| `database.py`              | SQLite cache and local settings                            |
+| `optimizer.py`             | OR-Tools CP-SAT scheduling and alternatives                |
+| `travel.py`                | Venue matching and approximate transfer times              |
+| `data/venues.json`         | Approximate venue centers used for pins                    |
+| `data/travelTimes.json`    | Editable travel assumptions and overrides                  |
+| `data/sampleSessions.json` | Synthetic sessions for preview and tests                   |
 
-The local SQLite database (`data/planner.db`) and OAuth tokens (`data/tokens.json`) are created only at runtime and excluded from version control. Keep the app local to your own account. On POSIX systems token files are written with owner-only permissions. **Sign out** removes the local tokens.
+Keep the app local to your own account. On POSIX systems token files are written with owner-only permissions. **Sign out** removes the local tokens.
 
 ## Limits
 
@@ -48,4 +71,3 @@ The local SQLite database (`data/planner.db`) and OAuth tokens (`data/tokens.jso
 - The solver considers the top 85 scored candidates per day plus all locked sessions so generation remains responsive. Rate favorites and add keywords to make sure relevant sessions are considered.
 - Untimed or malformed sessions cannot be scheduled. The catalog count and usable timed count are shown separately.
 - A public CARTO basemap style needs an internet connection for map tiles. The venue markers and itinerary are computed locally.
-

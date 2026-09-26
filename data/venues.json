@@ -1,0 +1,8 @@
+{
+  "caesars-forum": {"name": "Caesars Forum", "lat": 36.1178, "lon": -115.1670},
+  "caesars-palace": {"name": "Caesars Palace", "lat": 36.1162, "lon": -115.1745},
+  "encore": {"name": "Encore", "lat": 36.1292, "lon": -115.1647},
+  "mgm-grand": {"name": "MGM Grand", "lat": 36.1026, "lon": -115.1694},
+  "venetian": {"name": "The Venetian", "lat": 36.1212, "lon": -115.1697},
+  "wynn": {"name": "Wynn", "lat": 36.1271, "lon": -115.1649}
+}

@@ -31,8 +31,6 @@ st.markdown("""
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge[data-tone="other"]) { background: #f6f3fc; border-color: #d9ccec; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) { height: 260px; box-sizing: border-box; overflow-y: auto; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge):has(details[open]) { height: auto; overflow: visible; }
-  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) [data-testid="stButton"] button { min-width: 52px; height: 52px; padding: 0; font-size: 1.8rem !important; line-height: 1; }
-  [data-testid="stVerticalBlockBorderWrapper"]:has(.format-badge) [data-testid="stButton"] button p { margin: 0 !important; font-size: 1.8rem !important; line-height: 1; }
   .format-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
   .format-badge[data-tone="workshop"] { color: #89500d; background: #ffebca; }
   .format-badge[data-tone="talk"] { color: #28518d; background: #e2edff; }
@@ -304,11 +302,13 @@ with catalogTab:
             with st.container(border=True):
                 titleColumn, starColumn = st.columns([0.86, 0.14])
                 isSaved = session["id"] in savedSessionIds
+                _, _, starAction = starColumn.columns([2, 1, 1])
                 titleColumn.markdown(f"**{session['title']}**")
-                starColumn.button("★" if isSaved else "☆", key=f"save{session['id']}",
+                starAction.button(" ", icon=":material/star:" if isSaved else ":material/star_outline:",
+                                  key=f"save{session['id']}",
                                   help="Remove from saved sessions" if isSaved else "Save this session",
                                   on_click=toggleSavedSession, args=(session["id"],),
-                                  type="primary" if isSaved else "secondary")
+                                  type="secondary", use_container_width=True)
                 st.caption(session["code"] or "SESSION")
                 st.markdown(sessionTiming(session), unsafe_allow_html=True)
                 st.markdown(formatDetails(session), unsafe_allow_html=True)

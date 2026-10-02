@@ -42,9 +42,10 @@ Open the Streamlit URL on **the same computer** as the Python process. AWS's OAu
 
 ## Plan your days
 
-1. In **Discover & prioritize**, search the catalog. Rate individual sessions 1–5, mark them **Avoid**, or lock must-attend sessions. Click **Save these priorities** on each page you edit.
-2. In **Build schedules**, enter preferred keywords and a minimum, target, and maximum number of sessions **for each day**. Set all three equal to require an exact count. Optionally reserve a fixed lunch block.
-3. Click **Generate alternative schedules**. Compare counts and estimated travel across Balanced, Best content, Less walking, and Relaxed, then select an option and day to see its timeline and map.
+1. In **Browse sessions**, search and filter the catalog, then save sessions with the star.
+2. In **Prioritize saved**, rate saved sessions 1–5, mark sessions **Avoid**, or lock must-attend sessions. Save your priorities.
+3. In **Build schedules**, enter preferred keywords and a minimum, target, and maximum number of sessions **for each day**. Set all three equal to require an exact count. Optionally reserve a fixed lunch block.
+4. Click **Generate alternative schedules**. Compare counts and estimated travel across Balanced, Best content, Less walking, and Relaxed, then select an option and day to see its timeline and map. When the itinerary is final, click **Sync selected itinerary to AWS favorites** to add its sessions to your AWS account.
 
 The solver always enforces minimum and maximum counts, locks, time overlaps, estimated transfers, and at most one occurrence of a repeated session code. The Relaxed option adds a 25-minute buffer beyond each estimated transfer. Targets and keyword matches influence ranking. If constraints conflict, it reports that no feasible itinerary exists instead of quietly breaking them. It tries to make options distinct; tight constraints can leave fewer than four choices.
 
@@ -54,7 +55,7 @@ The solver always enforces minimum and maximum counts, locks, time overlaps, est
 | -------------------------- | ---------------------------------------------------------- |
 | `app.py`                   | Streamlit browser UI, timeline, comparison, and venue map  |
 | `auth.py`                  | Local Builder ID OAuth with PKCE and token refresh         |
-| `catalog.py`               | AWS catalog pagination and defensive session normalization |
+| `catalog.py`               | AWS catalog, schedule and favorites API calls; session normalization |
 | `database.py`              | SQLite cache and local settings                            |
 | `optimizer.py`             | OR-Tools CP-SAT scheduling and alternatives                |
 | `travel.py`                | Venue matching and approximate transfer times              |
@@ -67,7 +68,7 @@ Keep the app local to your own account. On POSIX systems token files are written
 ## Limits
 
 - Venue pins are approximate centers and map lines connect them directly. They are **not pedestrian routes or indoor wayfinding**. The timeline's travel minutes are planning estimates from an editable configuration. Check real routes and shuttle times before relying on tight transfers.
-- The app reads the catalog; it does not reserve seats or write schedules back to AWS. Session availability can change. Use the official event app to confirm and reserve your final itinerary.
+- Syncing adds only the selected itinerary's sessions to AWS favorites; it keeps existing AWS favorites and does not reserve seats. AWS favorites are a planning list. Use the attendee portal or AWS Events app to reserve sessions when booking opens. Session availability can change.
 - The solver considers the top 85 scored candidates per day plus all locked sessions so generation remains responsive. Rate favorites and add keywords to make sure relevant sessions are considered.
 - Untimed or malformed sessions cannot be scheduled. The catalog count and usable timed count are shown separately.
 - A public CARTO basemap style needs an internet connection for map tiles. The venue markers and itinerary are computed locally.

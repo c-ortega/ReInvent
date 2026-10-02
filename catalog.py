@@ -8,6 +8,8 @@ import httpx
 
 eventId = "reinvent2026"
 catalogUrl = f"https://api.awsevents.com/v1/events/{eventId}/sessions"
+scheduleUrl = f"https://api.awsevents.com/v1/events/{eventId}/schedule"
+favoritesUrl = f"https://api.awsevents.com/v1/events/{eventId}/favorites"
 eventTimeZone = ZoneInfo("America/Los_Angeles")
 
 
@@ -136,4 +138,54 @@ def fetchAll(accessToken: str) -> list[dict]:
             if not isinstance(nextToken, str) or nextToken in seenTokens:
                 raise ValueError("AWS returned an invalid or repeated nextToken")
             seenTokens.add(nextToken)
+
+
+def scheduleFavoriteIds(schedule: dict) -> set[str]:
+    """Extract session IDs from the signed-in attendee's AWS schedule."""
+    favorites = schedule.get("favorites")
+    if isinstance(favorites, dict):
+        favorites = favorites.get("items", favorites.get("sessions"))
+    if not isinstance(favorites, list):
+        raise ValueError("AWS schedule response did not contain a favorites list")
+    result = set()
+    for item in favorites:
+        if isinstance(item, str):
+            result.add(item)
+        elif isinstance(item, dict):
+            sessionId = firstValue(item, "sessionId", "id")
+            if sessionId is None and isinstance(item.get("session"), dict):
+                sessionId = firstValue(item["session"], "sessionId", "id")
+            if sessionId is not None:
+                result.add(str(sessionId))
+    return result
+
+
+def syncFavorites(accessToken: str, sessionIds: list[str]) -> dict:
+    """Add missing favorites and verify the final state by reading the schedule."""
+    requested = set(map(str, sessionIds))
+    headers = {"Authorization": f"Bearer {accessToken}"}
+    with httpx.Client(timeout=25, headers=headers) as client:
+        beforeResponse = client.get(scheduleUrl)
+        beforeResponse.raise_for_status()
+        beforePayload = beforeResponse.json()
+        if not isinstance(beforePayload, dict):
+            raise ValueError("Unexpected AWS schedule response: expected an object")
+        before = scheduleFavoriteIds(beforePayload)
+        missing = sorted(requested - before)
+        for offset in range(0, len(missing), 10):
+            batch = missing[offset:offset + 10]
+            response = client.post(favoritesUrl, json={"sessionIds": batch})
+            response.raise_for_status()
+        afterResponse = client.get(scheduleUrl)
+        afterResponse.raise_for_status()
+        afterPayload = afterResponse.json()
+        if not isinstance(afterPayload, dict):
+            raise ValueError("Unexpected AWS schedule response: expected an object")
+        after = scheduleFavoriteIds(afterPayload)
+    return {
+        "requested": sorted(requested),
+        "alreadyFavorited": sorted(requested & before),
+        "added": sorted((requested - before) & after),
+        "notConfirmed": sorted(requested - after),
+    }
 

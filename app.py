@@ -11,7 +11,7 @@ import streamlit as st
 
 import auth
 import database as db
-from catalog import fetchAll, normalize
+from catalog import fetchAll, normalize, syncFavorites
 from optimizer import generate
 from travel import venues, minutes, venueId
 
@@ -231,6 +231,7 @@ with st.sidebar:
             with st.spinner("Downloading all catalog pages…"):
                 raw = fetchAll(token)
                 db.saveCatalog(raw)
+                db.setSetting("catalogSource", "aws")
                 currentIds = {str(s["sessionId"]) for s in raw if s.get("sessionId") is not None}
                 db.setSetting("locked", [sid for sid in db.getSetting("locked", []) if sid in currentIds])
             st.session_state.pop("options", None)
@@ -248,6 +249,7 @@ with st.sidebar:
         from pathlib import Path
         sample = json.loads((Path(__file__).parent / "data/sampleSessions.json").read_text())
         db.saveCatalog(sample)
+        db.setSetting("catalogSource", "sample")
         sampleIds = {s["sessionId"] for s in sample}
         db.setSetting("locked", [sid for sid in db.getSetting("locked", []) if sid in sampleIds])
         st.session_state.pop("options", None)
@@ -256,6 +258,9 @@ with st.sidebar:
 
 rawSessions = db.loadCatalog()
 sessions = [s for raw in rawSessions if (s := normalize(raw))]
+sampleMode = db.getSetting("catalogSource", "") == "sample" or bool(rawSessions) and all(
+    str(raw.get("sessionId", "")).casefold().startswith("demo-") for raw in rawSessions
+)
 st.caption(f"{len(rawSessions)} cached catalog entries • {len(sessions)} timed sessions eligible for planning")
 if not sessions:
     st.info("Use **Load sample sessions** to explore the interface, or sign in and refresh the AWS catalog.")
@@ -402,6 +407,37 @@ with plannerTab:
         } for o in options], width="stretch", hide_index=True)
         selectedName = st.radio("Itinerary", [o["name"] for o in options], horizontal=True)
         selected = next(o for o in options if o["name"] == selectedName)
+        itineraryIds = sorted({str(s["id"]) for s in selected["sessions"]})
+        itineraryKey = tuple(itineraryIds)
+        st.subheader("Finalize on AWS")
+        st.caption(f"Add the {len(itineraryIds)} sessions in this itinerary to your AWS favorites. This does not reserve seats or remove other AWS favorites.")
+        if st.button("Sync selected itinerary to AWS favorites", type="primary",
+                     disabled=not auth.isSignedIn() or not itineraryIds or sampleMode):
+            try:
+                token = auth.accessToken()
+                if not token:
+                    raise RuntimeError("Sign in first.")
+                with st.spinner("Syncing favorites and confirming with AWS…"):
+                    syncResult = syncFavorites(token, itineraryIds)
+                st.session_state["awsFavoriteSync"] = {"itinerary": itineraryKey, "result": syncResult}
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (401, 403):
+                    st.error("AWS rejected the request. Sign in with the Builder ID registered for re:Invent and try again.")
+                else:
+                    st.error(f"AWS returned HTTP {exc.response.status_code} while syncing favorites. Some earlier batches may have succeeded; try again to reconcile.")
+            except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+                st.error(f"Could not confirm the AWS favorites sync: {exc}. Some favorites may already have been added; retrying is safe because the planner checks AWS first.")
+        if not auth.isSignedIn():
+            st.info("Sign in with AWS Builder ID in the sidebar to sync favorites.")
+        elif sampleMode:
+            st.info("Sample sessions are for preview only. Refresh the AWS catalog before syncing favorites.")
+        syncState = st.session_state.get("awsFavoriteSync", {})
+        if syncState.get("itinerary") == itineraryKey:
+            result = syncState["result"]
+            st.success(f"AWS confirmed {len(result['requested']) - len(result['notConfirmed'])} of {len(result['requested'])} itinerary sessions as favorites; {len(result['added'])} newly added and {len(result['alreadyFavorited'])} already favorited.")
+            if result["notConfirmed"]:
+                titles = [s["title"] for s in selected["sessions"] if str(s["id"]) in set(result["notConfirmed"])]
+                st.warning("AWS did not confirm: " + "; ".join(titles))
         selectedDay = st.selectbox("View day", days, format_func=labelDay)
         items = [s for s in selected["sessions"] if s["day"] == selectedDay]
         left, right = st.columns([1, 1.1], gap="large")

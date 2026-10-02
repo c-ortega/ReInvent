@@ -42,7 +42,7 @@ Open the Streamlit URL on **the same computer** as the Python process. AWS's OAu
 
 ## Plan your days
 
-1. In **Browse sessions**, search and filter the catalog, then save sessions with the star.
+1. In **Browse sessions**, search and filter the catalog, then save sessions with the star. If you have AWS favorites already, click **Pull current AWS favorites** to add them to the app's saved list.
 2. In **Prioritize saved**, rate saved sessions 1–5, mark sessions **Avoid**, or lock must-attend sessions. Save your priorities.
 3. In **Build schedules**, enter preferred keywords and a minimum, target, and maximum number of sessions **for each day**. Set all three equal to require an exact count. Optionally reserve a fixed lunch block.
 4. Click **Generate alternative schedules**. Compare counts and estimated travel across Balanced, Best content, Less walking, and Relaxed, then select an option and day to see its timeline and map. When the itinerary is final, click **Sync selected itinerary to AWS favorites** to add its sessions to your AWS account.

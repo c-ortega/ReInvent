@@ -160,6 +160,16 @@ def scheduleFavoriteIds(schedule: dict) -> set[str]:
     return result
 
 
+def fetchFavoriteIds(accessToken: str) -> set[str]:
+    """Fetch the signed-in attendee's AWS favorites from their schedule."""
+    response = httpx.get(scheduleUrl, headers={"Authorization": f"Bearer {accessToken}"}, timeout=25)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("Unexpected AWS schedule response: expected an object")
+    return scheduleFavoriteIds(payload)
+
+
 def syncFavorites(accessToken: str, sessionIds: list[str]) -> dict:
     """Add missing favorites and verify the final state by reading the schedule."""
     requested = set(map(str, sessionIds))

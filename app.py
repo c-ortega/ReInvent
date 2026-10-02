@@ -11,7 +11,7 @@ import streamlit as st
 
 import auth
 import database as db
-from catalog import fetchAll, normalize, syncFavorites
+from catalog import fetchAll, fetchFavoriteIds, normalize, syncFavorites
 from optimizer import generate
 from travel import venues, minutes, venueId
 
@@ -275,6 +275,25 @@ savedKeywords = db.getSetting("keywords", "")
 
 catalogTab, priorityTab, plannerTab = st.tabs(["Browse sessions", "Prioritize saved", "Build schedules"])
 with catalogTab:
+    if st.button("Pull current AWS favorites", disabled=not auth.isSignedIn()):
+        try:
+            token = auth.accessToken()
+            if not token:
+                raise RuntimeError("Sign in first.")
+            with st.spinner("Loading your AWS favorites…"):
+                awsFavorites = fetchFavoriteIds(token)
+            newlySaved = awsFavorites - savedSessionIds
+            savedSessionIds.update(awsFavorites)
+            db.setSetting("savedSessions", sorted(savedSessionIds))
+            catalogIds = {s["id"] for s in sessions}
+            st.success(f"Imported {len(newlySaved)} new favorites; {len(awsFavorites & catalogIds)} match the current catalog.")
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                st.error("AWS rejected the request. Sign in with the Builder ID registered for re:Invent.")
+            else:
+                st.error(f"AWS returned HTTP {exc.response.status_code} while loading favorites.")
+        except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+            st.error(f"Could not load AWS favorites: {exc}")
     query = st.text_input("Search title, description, service, or topic", placeholder="Bedrock, .NET, architecture…",
                           key="catalogQuery", on_change=resetCatalogPage)
     c1, c2, c3 = st.columns(3)

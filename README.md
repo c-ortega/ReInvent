@@ -30,7 +30,7 @@ When the app runs, `database.py` creates `data/planner.db`. After successful AWS
 Use Python 3.11 or newer:
 
 ```bash
-cd reinventPlanner
+cd ReInvent
 python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
@@ -51,17 +51,17 @@ The solver always enforces minimum and maximum counts, locks, time overlaps, est
 
 ## Files
 
-| File                       | Purpose                                                    |
-| -------------------------- | ---------------------------------------------------------- |
-| `app.py`                   | Streamlit browser UI, timeline, comparison, and venue map  |
-| `auth.py`                  | Local Builder ID OAuth with PKCE and token refresh         |
+| File                       | Purpose                                                              |
+| -------------------------- | -------------------------------------------------------------------- |
+| `app.py`                   | Streamlit browser UI, timeline, comparison, and venue map            |
+| `auth.py`                  | Local Builder ID OAuth with PKCE and token refresh                   |
 | `catalog.py`               | AWS catalog, schedule and favorites API calls; session normalization |
-| `database.py`              | SQLite cache and local settings                            |
-| `optimizer.py`             | OR-Tools CP-SAT scheduling and alternatives                |
-| `travel.py`                | Venue matching and approximate transfer times              |
-| `data/venues.json`         | Approximate venue centers used for pins                    |
-| `data/travelTimes.json`    | Editable travel assumptions and overrides                  |
-| `data/sampleSessions.json` | Synthetic sessions for preview and tests                   |
+| `database.py`              | SQLite cache and local settings                                      |
+| `optimizer.py`             | OR-Tools CP-SAT scheduling and alternatives                          |
+| `travel.py`                | Venue matching and approximate transfer times                        |
+| `data/venues.json`         | Approximate venue centers used for pins                              |
+| `data/travelTimes.json`    | Editable travel assumptions and overrides                            |
+| `data/sampleSessions.json` | Synthetic sessions for preview and tests                             |
 
 Keep the app local to your own account. On POSIX systems token files are written with owner-only permissions. **Sign out** removes the local tokens.
 

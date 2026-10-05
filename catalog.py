@@ -142,11 +142,21 @@ def fetchAll(accessToken: str) -> list[dict]:
 
 def scheduleFavoriteIds(schedule: dict) -> set[str]:
     """Extract session IDs from the signed-in attendee's AWS schedule."""
-    favorites = schedule.get("favorites")
+    # GetSchedule may omit the favorites property when the attendee has none.
+    # Some response versions also wrap the schedule or expose the collection
+    # under a more specific name.
+    for wrapper in ("schedule", "data"):
+        if isinstance(schedule.get(wrapper), dict):
+            schedule = schedule[wrapper]
+            break
+    favoritesKey = next((key for key in ("favorites", "favoriteSessions", "favoriteSessionIds") if key in schedule), None)
+    if favoritesKey is None:
+        return set()
+    favorites = schedule[favoritesKey]
     if isinstance(favorites, dict):
-        favorites = favorites.get("items", favorites.get("sessions"))
+        favorites = firstValue(favorites, "items", "sessions", "sessionIds", "ids")
     if not isinstance(favorites, list):
-        raise ValueError("AWS schedule response did not contain a favorites list")
+        raise ValueError(f"AWS schedule field '{favoritesKey}' was not a list")
     result = set()
     for item in favorites:
         if isinstance(item, str):
